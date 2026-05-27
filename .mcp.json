@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "yaldabaoth": {
+      "command": "python",
+      "args": ["C:/Users/ayari/Downloads/Yaldabaoth-MCP-fresh/virtual_keyboard_mcp.py"],
+      "env": {
+        "VK_COMMAND_PATH": "C:/Users/ayari/Downloads/Yaldabaoth-MCP-fresh/command.json",
+        "VK_RESULT_PATH": "C:/Users/ayari/Downloads/Yaldabaoth-MCP-fresh/command.result.json",
+        "VK_HOST_LAUNCH": "pythonw C:/Users/ayari/Downloads/Yaldabaoth-MCP-fresh/desktop_control.py --allow-input"
+      }
+    }
+  }
+}

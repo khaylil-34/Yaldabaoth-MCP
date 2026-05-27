@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+command.json
+command.result.json
+command.json.tmp-*
+command.result.json.tmp*
+screenshots/
+tab_sweeps/
+.mcp.json
+nav_log.jsonl
+experiment_log.jsonl
+                                                                      

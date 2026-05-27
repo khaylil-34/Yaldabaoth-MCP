@@ -1,0 +1,314 @@
+{
+  "version": 1,
+  "strategies": {
+    "open_app_via_run": {
+      "description": "Open an application via Win+R Run dialog",
+      "approaches": [
+        {
+          "id": "win-r-type-enter",
+          "steps": [{"hotkey": "win r"}, {"sleep": 0.5}, {"type": "{app_name}"}, {"press": "enter"}],
+          "attempts": 0,
+          "successes": 0,
+          "success_rate": 0,
+          "avg_duration_ms": 0,
+          "failure_modes": [],
+          "notes": "Wait 0.5s after Win+R for the Run dialog to gain focus."
+        }
+      ],
+      "best_approach": "win-r-type-enter",
+      "tags": ["launch", "application", "run-dialog"]
+    },
+    "navigate_to_url": {
+      "description": "Navigate browser to a specific URL",
+      "approaches": [
+        {
+          "id": "ctrl-l-type-enter",
+          "steps": [{"hotkey": "ctrl l"}, {"sleep": 0.3}, {"type": "{url}"}, {"press": "enter"}],
+          "attempts": 0,
+          "successes": 0,
+          "success_rate": 0,
+          "avg_duration_ms": 0,
+          "failure_modes": [],
+          "notes": "Ctrl+L focuses the address bar in all major browsers."
+        }
+      ],
+      "best_approach": "ctrl-l-type-enter",
+      "tags": ["browser", "navigation", "url"]
+    },
+    "switch_window": {
+      "description": "Switch to another open window",
+      "approaches": [
+        {
+          "id": "alt-tab",
+          "steps": [{"hotkey": "alt tab"}],
+          "attempts": 0,
+          "successes": 0,
+          "success_rate": 0,
+          "avg_duration_ms": 0,
+          "failure_modes": [],
+          "notes": "Switches to the most recently used window."
+        }
+      ],
+      "best_approach": "alt-tab",
+      "tags": ["window", "switch", "focus"]
+    },
+    "close_window": {
+      "description": "Close the current window",
+      "approaches": [
+        {
+          "id": "alt-f4",
+          "steps": [{"hotkey": "alt f4"}],
+          "attempts": 0,
+          "successes": 0,
+          "success_rate": 0,
+          "avg_duration_ms": 0,
+          "failure_modes": [],
+          "notes": "May trigger save dialog in some apps."
+        }
+      ],
+      "best_approach": "alt-f4",
+      "tags": ["window", "close"]
+    },
+    "open_new_tab": {
+      "description": "Open a new browser tab",
+      "approaches": [
+        {
+          "id": "ctrl-t",
+          "steps": [{"hotkey": "ctrl t"}],
+          "attempts": 0,
+          "successes": 0,
+          "success_rate": 0,
+          "avg_duration_ms": 0,
+          "failure_modes": [],
+          "notes": "Works in all major browsers. Focus lands on address bar."
+        }
+      ],
+      "best_approach": "ctrl-t",
+      "tags": ["browser", "tab", "new"]
+    },
+    "close_tab": {
+      "description": "Close the current browser tab",
+      "approaches": [
+        {
+          "id": "ctrl-w",
+          "steps": [{"hotkey": "ctrl w"}],
+          "attempts": 0,
+          "successes": 0,
+          "success_rate": 0,
+          "avg_duration_ms": 0,
+          "failure_modes": [],
+          "notes": "Also works in many editors and file managers."
+        }
+      ],
+      "best_approach": "ctrl-w",
+      "tags": ["browser", "tab", "close"]
+    },
+    "search_in_page": {
+      "description": "Find text on the current page",
+      "approaches": [
+        {
+          "id": "ctrl-f-type",
+          "steps": [{"hotkey": "ctrl f"}, {"sleep": 0.3}, {"type": "{search_text}"}],
+          "attempts": 0,
+          "successes": 0,
+          "success_rate": 0,
+          "avg_duration_ms": 0,
+          "failure_modes": [],
+          "notes": "Press Enter or F3 to cycle through matches."
+        }
+      ],
+      "best_approach": "ctrl-f-type",
+      "tags": ["search", "find", "page"]
+    },
+    "copy_paste": {
+      "description": "Copy selected content and paste it",
+      "approaches": [
+        {
+          "id": "ctrl-c-ctrl-v",
+          "steps": [{"hotkey": "ctrl c"}, {"sleep": 0.1}, {"hotkey": "ctrl v"}],
+          "attempts": 0,
+          "successes": 0,
+          "success_rate": 0,
+          "avg_duration_ms": 0,
+          "failure_modes": [],
+          "notes": "Content must be selected first. Paste goes to focused input."
+        }
+      ],
+      "best_approach": "ctrl-c-ctrl-v",
+      "tags": ["clipboard", "copy", "paste"]
+    },
+    "git_push_to_remote": {
+      "description": "Push local git commits to a remote repository",
+      "approaches": [
+        {
+          "id": "git-push-origin",
+          "steps": [{"hotkey": "ctrl l"}, {"sleep": 0.3}, {"type": "cmd"}, {"press": "enter"}, {"sleep": 1.0}, {"type": "cd {project_path} && git push origin main"}, {"press": "enter"}],
+          "attempts": 2,
+          "successes": 1,
+          "success_rate": 0.5,
+          "avg_duration_ms": 8000,
+          "failure_modes": ["remote contains work not present locally -- must pull or force-push"],
+          "notes": "First attempt failed because remote had diverged (force-pushed to 'Initial commit'). Resolved with git push --force. Always check remote state first."
+        },
+        {
+          "id": "git-push-force",
+          "steps": [{"hotkey": "ctrl l"}, {"sleep": 0.3}, {"type": "cmd"}, {"press": "enter"}, {"sleep": 1.0}, {"type": "cd {project_path} && git push --force origin main"}, {"press": "enter"}],
+          "attempts": 1,
+          "successes": 1,
+          "success_rate": 1.0,
+          "avg_duration_ms": 5000,
+          "failure_modes": [],
+          "notes": "Use only when remote was reset/wiped and local has the authoritative history. Destructive -- overwrites remote."
+        }
+      ],
+      "best_approach": "git-push-origin",
+      "tags": ["git", "push", "remote", "github"]
+    },
+    "open_terminal": {
+      "description": "Open a terminal/command prompt window",
+      "approaches": [
+        {
+          "id": "win-r-cmd",
+          "steps": [{"hotkey": "win r"}, {"sleep": 0.5}, {"type": "cmd"}, {"press": "enter"}],
+          "attempts": 0,
+          "successes": 0,
+          "success_rate": 0,
+          "avg_duration_ms": 0,
+          "failure_modes": [],
+          "notes": "Opens classic Command Prompt. Use 'wt' for Windows Terminal."
+        },
+        {
+          "id": "win-r-wt",
+          "steps": [{"hotkey": "win r"}, {"sleep": 0.5}, {"type": "wt"}, {"press": "enter"}],
+          "attempts": 0,
+          "successes": 0,
+          "success_rate": 0,
+          "avg_duration_ms": 0,
+          "failure_modes": [],
+          "notes": "Opens Windows Terminal if installed. Falls back to error if not present."
+        }
+      ],
+      "best_approach": "win-r-cmd",
+      "tags": ["terminal", "cmd", "command-prompt", "shell"]
+    },
+    "select_all_text": {
+      "description": "Select all text in the current input or document",
+      "approaches": [
+        {
+          "id": "ctrl-a",
+          "steps": [{"hotkey": "ctrl a"}],
+          "attempts": 0,
+          "successes": 0,
+          "success_rate": 0,
+          "avg_duration_ms": 0,
+          "failure_modes": [],
+          "notes": "Works in most apps. In browsers, selects all page content."
+        }
+      ],
+      "best_approach": "ctrl-a",
+      "tags": ["selection", "text", "all"]
+    },
+    "undo_action": {
+      "description": "Undo the last action",
+      "approaches": [
+        {
+          "id": "ctrl-z",
+          "steps": [{"hotkey": "ctrl z"}],
+          "attempts": 0,
+          "successes": 0,
+          "success_rate": 0,
+          "avg_duration_ms": 0,
+          "failure_modes": [],
+          "notes": "Universal undo. Press multiple times to undo further back."
+        }
+      ],
+      "best_approach": "ctrl-z",
+      "tags": ["undo", "revert"]
+    },
+    "save_file": {
+      "description": "Save the current file or document",
+      "approaches": [
+        {
+          "id": "ctrl-s",
+          "steps": [{"hotkey": "ctrl s"}],
+          "attempts": 0,
+          "successes": 0,
+          "success_rate": 0,
+          "avg_duration_ms": 0,
+          "failure_modes": [],
+          "notes": "In new/unsaved files, opens Save As dialog."
+        }
+      ],
+      "best_approach": "ctrl-s",
+      "tags": ["save", "file"]
+    },
+    "scroll_page": {
+      "description": "Scroll through a page or document",
+      "approaches": [
+        {
+          "id": "page-down",
+          "steps": [{"press": "pagedown"}],
+          "attempts": 0,
+          "successes": 0,
+          "success_rate": 0,
+          "avg_duration_ms": 0,
+          "failure_modes": [],
+          "notes": "Scrolls one viewport height down. Use pageup for reverse."
+        },
+        {
+          "id": "space-bar",
+          "steps": [{"press": "space"}],
+          "attempts": 0,
+          "successes": 0,
+          "success_rate": 0,
+          "avg_duration_ms": 0,
+          "failure_modes": ["Types a space if focus is on an input field"],
+          "notes": "Browser-only. Scrolls down like PageDown. Shift+Space scrolls up."
+        }
+      ],
+      "best_approach": "page-down",
+      "tags": ["scroll", "page", "navigation"]
+    }
+  },
+  "site_knowledge": {
+    "github.com": {
+      "keyboard_shortcuts": {
+        ".": "Open web editor",
+        "/": "Focus search bar",
+        "e": "Edit file (when viewing a file)",
+        "t": "File finder",
+        "ctrl enter": "Submit form / comment"
+      },
+      "navigation_patterns": {
+        "file_list": "Files appear as Hyperlinks with name and (File) or (Directory) role",
+        "tabs": "Code, Issues, Pull Requests, Actions etc. are tab links"
+      },
+      "accessibility_notes": {
+        "skip_to_content": "First tabbable element is 'Skip to content'",
+        "editor": "Uses CodeMirror or Monaco for code editing"
+      }
+    }
+  },
+  "anti_patterns": [
+    {
+      "description": "Do not tab-sweep inside video players -- they create keyboard focus traps",
+      "context": "YouTube, Vimeo, and embedded video players capture keyboard focus for media controls",
+      "discovered": "2026-05-27T00:00:00Z"
+    },
+    {
+      "description": "Do not type into search bars without verifying focus first -- keystrokes may go to wrong target",
+      "context": "Some pages steal focus on load, redirecting typed text to unexpected inputs",
+      "discovered": "2026-05-27T00:00:00Z"
+    },
+    {
+      "description": "Always check remote state before git push -- remote may have been force-pushed or reset independently",
+      "context": "First push attempt failed because remote was reset to 'Initial commit'. git pull --rebase caused modify/delete conflicts on every file. Resolved by aborting rebase and force-pushing.",
+      "discovered": "2026-05-27T00:00:00Z"
+    },
+    {
+      "description": "Do not git pull --rebase when remote history was rewritten -- it creates impossible conflicts. Use git push --force if local is authoritative.",
+      "context": "Rebase attempted to replay local commits on top of a wiped remote, causing modify/delete conflicts on files that existed locally but were deleted in the remote's new history.",
+      "discovered": "2026-05-27T00:00:00Z"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+fastmcp
+comtypes
+Pillow
+mss
+rapidocr_onnxruntime
