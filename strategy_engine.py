@@ -18,18 +18,92 @@ from typing import Any
 from yald_bridge import atomic_write
 
 EMPTY_DB: dict[str, Any] = {
-    "version": 1,
+    "version": 2,
     "strategies": {},
     "site_knowledge": {},
     "anti_patterns": [],
+    "tool_knowledge": {},
 }
+
+
+_TOOL_RE = re.compile(r'\bvk_\w+', re.IGNORECASE)
+
+
+def _extract_tool_names(approach: dict) -> list[str]:
+    text = approach.get("id", "")
+    for step in approach.get("steps", []):
+        if isinstance(step, dict):
+            text += " " + json.dumps(step)
+    return list(set(_TOOL_RE.findall(text)))
+
+
+def update_tool_knowledge(data: dict, tool_name: str,
+                          success: bool, duration_ms: float,
+                          task_context: str = "") -> None:
+    tools = data.setdefault("tool_knowledge", {})
+    entry = tools.setdefault(tool_name, {
+        "avg_duration_ms": 0, "total_attempts": 0,
+        "total_successes": 0, "success_rate": 0,
+        "best_for": [], "notes": [],
+    })
+    entry["total_attempts"] = entry.get("total_attempts", 0) + 1
+    if success:
+        entry["total_successes"] = entry.get("total_successes", 0) + 1
+    n = entry["total_attempts"]
+    entry["success_rate"] = round(entry["total_successes"] / n, 3)
+    if duration_ms > 0:
+        prev = entry.get("avg_duration_ms", 0)
+        entry["avg_duration_ms"] = round(prev + (duration_ms - prev) / n, 1)
+    if task_context and success:
+        bf = entry.setdefault("best_for", [])
+        if task_context not in bf:
+            bf.append(task_context)
+            if len(bf) > 10:
+                bf[:] = bf[-10:]
+    entry["last_updated"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def get_tool_preferences(data: dict,
+                         keywords: list[str] | None = None) -> list[dict]:
+    tools = data.get("tool_knowledge", {})
+    if not tools:
+        return []
+    entries = []
+    for name, info in tools.items():
+        score = info.get("success_rate", 0)
+        if keywords:
+            bf = [b.lower() for b in info.get("best_for", [])]
+            if any(k.lower() in " ".join(bf) for k in keywords):
+                score += 0.5
+        entries.append({"tool": name, "relevance": round(score, 2), **info})
+    entries.sort(key=lambda e: (-e["relevance"], e.get("avg_duration_ms", 9999)))
+    return entries[:5]
+
+
+def _migrate_v1_to_v2(data: dict) -> dict:
+    if data.get("version", 1) >= 2:
+        return data
+    data.setdefault("tool_knowledge", {})
+    for skey, strategy in data.get("strategies", {}).items():
+        for approach in strategy.get("approaches", []):
+            tools = _extract_tool_names(approach)
+            for tool_name in tools:
+                update_tool_knowledge(
+                    data, tool_name,
+                    approach.get("success_rate", 0) > 0.5,
+                    approach.get("avg_duration_ms", 0),
+                    skey,
+                )
+    data["version"] = 2
+    return data
 
 
 def load_strategies(path: str | Path) -> dict[str, Any]:
     path = Path(path)
     if not path.exists():
         return json.loads(json.dumps(EMPTY_DB))
-    return json.loads(path.read_text(encoding="utf-8"))
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return _migrate_v1_to_v2(data)
 
 
 def save_strategies(path: str | Path, data: dict[str, Any]) -> None:
@@ -120,6 +194,9 @@ def record_attempt(data: dict[str, Any], strategy_key: str, approach_id: str,
                 modes = approach.setdefault("failure_modes", [])
                 if failure_reason not in modes:
                     modes.append(failure_reason)
+            tool_names = _extract_tool_names(approach)
+            for tn in tool_names:
+                update_tool_knowledge(data, tn, success, duration_ms, strategy_key)
             break
 
     _update_best(strategy)
