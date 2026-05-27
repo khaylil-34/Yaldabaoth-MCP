@@ -732,41 +732,174 @@ def _fast_screenshot():
         return Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
 
 
-# ---- OCR (RapidOCR, lazy-loaded) --------------------------------------------
+# ---- Screen reader (WinRT OCR, GPU-accelerated) -----------------------------
 
-_ocr_engine = None
-
-
-def _ensure_ocr():
-    global _ocr_engine
-    if _ocr_engine is None:
-        from rapidocr_onnxruntime import RapidOCR
-        _ocr_engine = RapidOCR()
-        print("[OCR] RapidOCR loaded")
+_screen_reader = None
 
 
-def ocr_screen(spec: dict = None):
-    import numpy as np
+def _ensure_screen_reader():
+    global _screen_reader
+    if _screen_reader is None:
+        import winocr
+        _screen_reader = winocr
+        print("[ScreenReader] WinRT OCR loaded (GPU-accelerated)")
+
+
+def read_screen(spec: dict = None):
     spec = spec or {}
-    _ensure_ocr()
+    _ensure_screen_reader()
     started = time.time()
     img = _fast_screenshot()
-    results, _ = _ocr_engine(np.array(img))
+    result = _screen_reader.recognize_pil_sync(img, lang="en")
     elements = []
-    if results:
-        for bbox, text, conf in results:
-            cx = int((bbox[0][0] + bbox[2][0]) / 2)
-            cy = int((bbox[0][1] + bbox[2][1]) / 2)
+    for line in result.get("lines", []):
+        for word in line.get("words", []):
+            bb = word.get("bounding_rect", {})
+            bx, by = bb.get("x", 0), bb.get("y", 0)
+            bw, bh = bb.get("width", 0), bb.get("height", 0)
+            cx = int(bx + bw / 2)
+            cy = int(by + bh / 2)
             elements.append({
-                "text": str(text),
-                "conf": float(conf) if isinstance(conf, (int, float)) else 0,
+                "text": word.get("text", ""),
+                "conf": 1.0,
                 "center": [cx, cy],
-                "bbox": [[int(p[0]), int(p[1])] for p in bbox],
+                "bbox": [[int(bx), int(by)],
+                         [int(bx + bw), int(by)],
+                         [int(bx + bw), int(by + bh)],
+                         [int(bx), int(by + bh)]],
             })
     return {
         "ok": True,
         "element_count": len(elements),
         "elements": elements,
+        "elapsed_ms": round((time.time() - started) * 1000, 1),
+    }
+
+
+def ocr_screen(spec: dict = None):
+    return read_screen(spec)
+
+
+# ---- UIA element finder (fast, no screenshot) --------------------------------
+
+def uia_find_element(target: str) -> list[dict]:
+    if not _uia:
+        return []
+    target_lower = target.strip().lower()
+    started = time.time()
+    try:
+        hwnd = user32.GetForegroundWindow()
+        root = _uia.ElementFromHandle(hwnd)
+        true_cond = _uia.CreateTrueCondition()
+        all_elements = root.FindAll(UIA_TREE_SCOPE_DESCENDANTS, true_cond)
+        matches = []
+        count = all_elements.Length
+        for idx in range(min(count, 500)):
+            el = all_elements.GetElement(idx)
+            try:
+                name = el.CurrentName or ""
+            except Exception:
+                continue
+            if not name or target_lower not in name.lower():
+                continue
+            try:
+                rect = el.CurrentBoundingRectangle
+                ct = el.CurrentControlType
+            except Exception:
+                continue
+            l, t, r, b = rect.left, rect.top, rect.right, rect.bottom
+            if l == 0 and t == 0 and r == 0 and b == 0:
+                continue
+            matches.append({
+                "name": name,
+                "role": _uia_localized_names.get(ct, str(ct)),
+                "rect": {"left": l, "top": t, "right": r, "bottom": b},
+                "center": [int((l + r) / 2), int((t + b) / 2)],
+            })
+        return matches
+    except Exception:
+        return []
+
+
+# ---- 8-way spatial direction -------------------------------------------------
+
+import math
+
+_last_locate = {"target": None, "center": None, "rect": None, "ts": 0, "found_via": None}
+
+
+def spatial_direction(mouse_pos: tuple, target_center: tuple, target_rect: dict = None) -> dict:
+    mx, my = mouse_pos
+    tx, ty = target_center
+    if target_rect:
+        l, t, r, b = target_rect["left"], target_rect["top"], target_rect["right"], target_rect["bottom"]
+        if l <= mx <= r and t <= my <= b:
+            return {"direction": "on_target", "distance_px": 0, "angle_deg": 0}
+    dx = tx - mx
+    dy = my - ty
+    dist = math.hypot(dx, dy)
+    if dist < 3:
+        return {"direction": "on_target", "distance_px": 0, "angle_deg": 0}
+    angle = math.degrees(math.atan2(dy, dx)) % 360
+    dirs = ["E", "NE", "N", "NW", "W", "SW", "S", "SE"]
+    idx = int((angle + 22.5) / 45) % 8
+    return {"direction": dirs[idx], "distance_px": round(dist), "angle_deg": round(angle, 1)}
+
+
+def _get_mouse_pos() -> tuple:
+    pt = ctypes.wintypes.POINT()
+    user32.GetCursorPos(ctypes.byref(pt))
+    return (pt.x, pt.y)
+
+
+def locate_target(spec: dict) -> dict:
+    target = str(spec.get("target", ""))
+    if not target:
+        return {"ok": False, "error": "no target specified"}
+
+    started = time.time()
+    cache = _last_locate
+    mouse = _get_mouse_pos()
+
+    if (cache["target"] == target and cache["center"]
+            and (time.time() - cache["ts"]) < 5.0):
+        sd = spatial_direction(mouse, tuple(cache["center"]), cache["rect"])
+        return {
+            "ok": True, "target": target, "cached": True,
+            "center": cache["center"], "found_via": cache["found_via"],
+            **sd, "elapsed_ms": round((time.time() - started) * 1000, 1),
+        }
+
+    uia_matches = uia_find_element(target)
+    if uia_matches:
+        best = uia_matches[0]
+        center = best["center"]
+        rect = best["rect"]
+        cache.update(target=target, center=center, rect=rect, ts=time.time(), found_via="uia")
+        sd = spatial_direction(mouse, tuple(center), rect)
+        return {
+            "ok": True, "target": target, "cached": False,
+            "matched_name": best["name"], "role": best["role"],
+            "center": center, "found_via": "uia",
+            **sd, "elapsed_ms": round((time.time() - started) * 1000, 1),
+        }
+
+    scan = read_screen()
+    match = _best_text_match(target, scan.get("elements", []))
+    if match:
+        center = match["center"]
+        cache.update(target=target, center=center, rect=None, ts=time.time(), found_via="screen_reader")
+        sd = spatial_direction(mouse, tuple(center))
+        return {
+            "ok": True, "target": target, "cached": False,
+            "matched_text": match["text"], "center": center,
+            "found_via": "screen_reader",
+            **sd, "elapsed_ms": round((time.time() - started) * 1000, 1),
+        }
+
+    return {
+        "ok": False, "target": target,
+        "error": f"'{target}' not found via UIA or screen reader",
         "elapsed_ms": round((time.time() - started) * 1000, 1),
     }
 
@@ -793,35 +926,21 @@ def _best_text_match(target: str, elements: list[dict]) -> dict | None:
 
 
 def click_target(spec: dict):
-    target = str(spec.get("target", ""))
-    if not target:
-        return {"ok": False, "error": "no target specified"}
-
-    started = time.time()
-    scan = ocr_screen()
-    elements = scan.get("elements", [])
-    if not elements:
-        return {"ok": False, "error": "OCR found no text on screen", "elapsed_ms": scan.get("elapsed_ms")}
-
-    match = _best_text_match(target, elements)
-    if not match:
-        return {
-            "ok": False,
-            "error": f"target '{target}' not found in OCR results",
-            "available_texts": [e["text"] for e in elements[:20]],
-            "elapsed_ms": round((time.time() - started) * 1000, 1),
-        }
-
-    cx, cy = match["center"]
+    loc = locate_target(spec)
+    if not loc.get("ok"):
+        return loc
+    cx, cy = loc["center"]
     mouse_click(cx, cy)
-
     return {
         "ok": True,
-        "target": target,
-        "matched_text": match["text"],
+        "target": spec.get("target", ""),
+        "matched_text": loc.get("matched_name") or loc.get("matched_text", ""),
         "clicked_at": [cx, cy],
-        "confidence": match.get("conf", 0),
-        "elapsed_ms": round((time.time() - started) * 1000, 1),
+        "found_via": loc.get("found_via"),
+        "direction": loc.get("direction"),
+        "distance_px": loc.get("distance_px"),
+        "confidence": 1.0,
+        "elapsed_ms": loc.get("elapsed_ms", 0),
     }
 
 
@@ -909,7 +1028,7 @@ def _parse_gemini_response(response_text: str,
 
 
 def gemini_vision(spec: dict) -> dict:
-    """Screenshot â†' Gemini browser â†' structured elements with pixel coordinates."""
+    """Screenshot Ã¢â€ ' Gemini browser Ã¢â€ ' structured elements with pixel coordinates."""
     goal = str(spec.get("goal", ""))
     if not goal:
         return {"ok": False, "error": "no goal specified"}
@@ -966,7 +1085,7 @@ def gemini_vision(spec: dict) -> dict:
 
 
 def gemini_click(spec: dict) -> dict:
-    """Vision-guided click: screenshot â†' Gemini â†' parse coordinates â†' mouse click."""
+    """Vision-guided click: screenshot Ã¢â€ ' Gemini Ã¢â€ ' parse coordinates Ã¢â€ ' mouse click."""
     goal = str(spec.get("goal", ""))
     if not goal:
         return {"ok": False, "error": "no goal specified"}
@@ -1597,7 +1716,10 @@ def run_route(steps: list[dict]):
             r = mouse_click(spec.get("x"), spec.get("y"))
             append({"step": i, **r})
         elif "ocr_scan" in step:
-            r = ocr_screen(step["ocr_scan"] or {})
+            r = read_screen(step["ocr_scan"] or {})
+            append({"step": i, **r})
+        elif "locate_target" in step:
+            r = locate_target(step["locate_target"] or {})
             append({"step": i, **r})
         elif "click_target" in step:
             r = click_target(step["click_target"] or {})
