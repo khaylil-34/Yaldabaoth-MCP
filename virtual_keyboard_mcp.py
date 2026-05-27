@@ -201,14 +201,25 @@ def vk_snapshot(wait: bool = True,
 
 @mcp.tool()
 def vk_click(target: str, wait: bool = True, timeout: float = 30.0) -> dict[str, Any]:
-    """Click visible text on screen using OCR. Finds target text, moves mouse to it, clicks."""
+    """Find visible text/element on screen and click it. Uses UIA first (<150ms), falls back to screen reader (<500ms)."""
     return bridge.route([{"click_target": {"target": target}}], wait=wait, timeout=timeout)
 
 
 @mcp.tool()
 def vk_ocr(wait: bool = True, timeout: float = 30.0) -> dict[str, Any]:
-    """OCR the screen -- returns all visible text with positions."""
+    """Read all visible text on screen with positions. GPU-accelerated, 100-300ms."""
     return bridge.route([{"ocr_scan": {}}], wait=wait, timeout=timeout)
+
+
+@mcp.tool()
+def vk_locate(target: str, wait: bool = True, timeout: float = DEFAULT_TIMEOUT) -> dict[str, Any]:
+    """Find target on screen and return 8-way direction from mouse.
+
+    First call finds via UIA/screen reader (100-500ms) and caches.
+    Repeat calls for same target use cache (<5ms) â€” use for mouse correction loops.
+    Returns: direction (N/NE/E/SE/S/SW/W/NW/on_target), distance_px, center coords.
+    """
+    return bridge.route([{"locate_target": {"target": target}}], wait=wait, timeout=timeout)
 
 
 @mcp.tool()
@@ -247,13 +258,16 @@ def vk_recall(task: str, tags: list[str] | None = None) -> dict[str, Any]:
     """
     from strategy_engine import (
         load_strategies, find_strategy, get_best_approach, get_anti_patterns,
+        get_tool_preferences,
     )
     data = load_strategies(STRATEGIES_PATH)
     strategy = find_strategy(data, task, tags)
-    if not strategy:
-        return {"ok": True, "found": False, "task": task}
-    best = get_best_approach(strategy)
     keywords = tags or task.lower().split()
+    tool_prefs = get_tool_preferences(data, keywords)
+    if not strategy:
+        return {"ok": True, "found": False, "task": task,
+                "tool_preferences": tool_prefs}
+    best = get_best_approach(strategy)
     return {
         "ok": True,
         "found": True,
@@ -262,6 +276,7 @@ def vk_recall(task: str, tags: list[str] | None = None) -> dict[str, Any]:
         "best_approach": best,
         "total_approaches": len(strategy.get("approaches", [])),
         "anti_patterns": get_anti_patterns(data, keywords),
+        "tool_preferences": tool_prefs,
     }
 
 
